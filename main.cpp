@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <memory.h>
 #include <pcap.h>
+#include "module.h"
 
 void usage() {
   printf("syntax: send_arp <interface> <sender ip> <target ip>\n");
@@ -21,4 +22,11 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "couldn't open device %s: %s\n", dev, errbuf);
     return -1;
   }
+
+  char* src_ip = argv[2];
+  char* des_ip = argv[3];
+  u_char * target_mac_address = getTargetMACAddress(handle, src_ip, des_ip);
+
+  pcap_close(handle);
+  return 0;
 }
