@@ -11,3 +11,4 @@ module.o: module.cpp
 
 clean: 
 	rm -f *.o
+	rm send_arp
