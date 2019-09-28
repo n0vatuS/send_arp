@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <net/if.h>
 #include <net/if_dl.h>
 #include <net/if_arp.h>
@@ -9,11 +12,21 @@
 #include <netinet/in.h>
 #include <ifaddrs.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include "module.h"
 #include "pcap.h"
 
 #define IP_ADDR_LEN 4
+
+void printMacAddress(u_char * mac, char * text) {
+    printf("%s", text);
+    for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
+        printf("%02x", mac[i]);
+        if(i != ETHER_ADDR_LEN - 1) printf(":");
+    }
+    printf("\n\n");
+}
 
 uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
     uint8_t * ip = (uint8_t *)malloc(sizeof(uint8_t) * IP_ADDR_LEN);
@@ -27,35 +40,13 @@ uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
     return ip;
 }
 
-u_char * getSenderMacAddress(char * dev) {
-    struct ifaddrs *if_addrs = NULL;
-    struct ifaddrs *if_addr = NULL;
-
-    if (0 == getifaddrs(&if_addrs)) {    
-        for (if_addr = if_addrs; if_addr != NULL; if_addr = if_addr->ifa_next) {
-            if(!strcmp(dev, if_addr -> ifa_name)) {
-                printf("name : %s\n", if_addr->ifa_name);
-
-                // MAC address
-                if (if_addr->ifa_addr != NULL && if_addr->ifa_addr->sa_family == AF_LINK) {
-                    struct sockaddr_dl* sdl = (struct sockaddr_dl *)if_addr->ifa_addr;
-                    u_char * mac = (uint8_t *)malloc(sizeof(uint8_t) * ETHER_ADDR_LEN);
-                    if (ETHER_ADDR_LEN == sdl->sdl_alen) {
-                        memcpy(mac, LLADDR(sdl), sdl->sdl_alen);
-                        printf("mac  : %02x:%02x:%02x:%02x:%02x:%02x\n\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-                        freeifaddrs(if_addrs);
-                        if_addrs = NULL;
-                        return mac;
-                    }
-                }
-            }
-        }
-    } 
-    else {
-        printf("getifaddrs() failed with errno =  %i %s\n", errno, strerror(errno));
-        exit(1);
-    }
-    return NULL;
+uint8_t * getRouterIPAddress(void) {
+    uint8_t * ip = (uint8_t *)malloc(sizeof(uint8_t));
+    ip[0] = 0xC0;
+    ip[1] = 0xA8;
+    ip[2] = 0x00;
+    ip[3] = 0x01;
+    return ip;
 }
 
 u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip) {
@@ -95,9 +86,40 @@ u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uin
     return packet;
 }
 
-u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, char * src_ip, char * des_ip) {
+u_char * getSenderMacAddress(char * dev) {
+    struct ifaddrs *if_addrs = NULL;
+    struct ifaddrs *if_addr = NULL;
+
+    if (0 == getifaddrs(&if_addrs)) {    
+        for (if_addr = if_addrs; if_addr != NULL; if_addr = if_addr->ifa_next) {
+            if(!strcmp(dev, if_addr->ifa_name)) {
+                printf("name : %s\n", if_addr->ifa_name);
+
+                // MAC address
+                if (if_addr->ifa_addr != NULL && if_addr->ifa_addr->sa_family == AF_LINK) {
+                    struct sockaddr_dl* sdl = (struct sockaddr_dl *)if_addr->ifa_addr;
+                    u_char * mac = (uint8_t *)malloc(sizeof(uint8_t) * ETHER_ADDR_LEN);
+                    if (ETHER_ADDR_LEN == sdl->sdl_alen) {
+                        memcpy(mac, LLADDR(sdl), sdl->sdl_alen);
+                        printf("mac  : %02x:%02x:%02x:%02x:%02x:%02x\n\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                        freeifaddrs(if_addrs);
+                        if_addrs = NULL;
+                        return mac;
+                    }
+                }
+            }
+        }
+    } 
+    else {
+        printf("getifaddrs() failed with errno =  %i %s\n", errno, strerror(errno));
+        exit(1);
+    }
+    return NULL;
+}
+
+u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, uint8_t * src_ip, uint8_t * des_ip) {
     uint8_t broadcast[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    u_char * packet = makeArpPacket(sender_mac_address, broadcast, parseIP(src_ip), parseIP(des_ip));
+    u_char * packet = makeArpPacket(sender_mac_address, broadcast, src_ip, des_ip);
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
 
     int cnt = 0;

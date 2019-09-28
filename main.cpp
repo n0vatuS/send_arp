@@ -15,32 +15,33 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  char* dev = argv[1];
+  char * dev = argv[1];
   char errbuf[PCAP_ERRBUF_SIZE];
 
-  pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+  pcap_t * handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
   if (handle == NULL) {
     fprintf(stderr, "couldn't open device %s: %s\n", dev, errbuf);
     return -1;
   }
 
-  char* src_ip = argv[2];
-  char* des_ip = argv[3];
+  uint8_t * src_ip = parseIP(argv[2]);
+  uint8_t * des_ip = parseIP(argv[3]);
+  printf("%u.%u.%u.%u", src_ip[0],src_ip[1],src_ip[2],src_ip[3]);
+  
+  uint8_t * router_ip = getRouterIPAddress();
+  printf("%u.%u.%u.%u", router_ip[0],router_ip[1],router_ip[2],router_ip[3]);
 
   u_char * sender_mac_address = getSenderMacAddress(dev);
-  printf("Sender Mac Address : ");
-  for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
-      printf("%02x", sender_mac_address[i]);
-      if(i != ETHER_ADDR_LEN - 1) printf(":");
-  }
-  printf("\n\n");
+  char text1[30] = "Sender Mac Address : ";
+  printMacAddress(sender_mac_address, text1);
+
+  u_char * router_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, router_ip);
+  char text2[30] = "Router Mac Address : ";
+  printMacAddress(router_mac_address, text2);
+
   u_char * target_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, des_ip);
-  printf("Target Mac Address : ");
-  for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
-      printf("%02x", target_mac_address[i]);
-      if(i != ETHER_ADDR_LEN - 1) printf(":");
-  }
-  printf("\n\n");
+  char text3[30] = "Target Mac Address : ";
+  printMacAddress(target_mac_address, text3);
 
   pcap_close(handle);
   return 0;
