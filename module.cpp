@@ -27,7 +27,7 @@ uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
     return ip;
 }
 
-uint8_t * getSenderMacAddress(char * dev) {
+u_char * getSenderMacAddress(char * dev) {
     struct ifaddrs *if_addrs = NULL;
     struct ifaddrs *if_addr = NULL;
 
@@ -39,7 +39,7 @@ uint8_t * getSenderMacAddress(char * dev) {
                 // MAC address
                 if (if_addr->ifa_addr != NULL && if_addr->ifa_addr->sa_family == AF_LINK) {
                     struct sockaddr_dl* sdl = (struct sockaddr_dl *)if_addr->ifa_addr;
-                    uint8_t * mac = (uint8_t *)malloc(sizeof(uint8_t) * ETHER_ADDR_LEN);
+                    u_char * mac = (uint8_t *)malloc(sizeof(uint8_t) * ETHER_ADDR_LEN);
                     if (ETHER_ADDR_LEN == sdl->sdl_alen) {
                         memcpy(mac, LLADDR(sdl), sdl->sdl_alen);
                         printf("mac  : %02x:%02x:%02x:%02x:%02x:%02x\n\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -58,12 +58,11 @@ uint8_t * getSenderMacAddress(char * dev) {
     return NULL;
 }
 
-u_char * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
+u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip) {
     struct ether_header * ether_hdr = (struct ether_header *)malloc(sizeof(struct ether_header));
 
-    uint8_t des_mac[ETHER_ADDR_LEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    memcpy(ether_hdr -> ether_dhost, des_mac, ETHER_ADDR_LEN);
     memcpy(ether_hdr -> ether_shost, src_mac, ETHER_ADDR_LEN);
+    memcpy(ether_hdr -> ether_dhost, des_mac, ETHER_ADDR_LEN);
     ether_hdr -> ether_type = htons(ETHERTYPE_ARP);
     
     struct ether_arp * req = (struct ether_arp *)malloc(sizeof(struct ether_arp));
@@ -96,8 +95,9 @@ u_char * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
     return packet;
 }
 
-u_char * getTargetMacAddress(pcap_t* handle, char * dev, char * src_ip, char * des_ip) {
-    u_char * packet = makeArpPacket(getSenderMacAddress(dev), parseIP(src_ip), parseIP(des_ip));
+u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, char * src_ip, char * des_ip) {
+    uint8_t broadcast[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    u_char * packet = makeArpPacket(sender_mac_address, broadcast, parseIP(src_ip), parseIP(des_ip));
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
 
     int cnt = 0;
@@ -110,4 +110,5 @@ u_char * getTargetMacAddress(pcap_t* handle, char * dev, char * src_ip, char * d
         u_char * target_mac_address = DataLinkLayer(packet);
         if(target_mac_address) return target_mac_address;
     }
+    return NULL;
 }

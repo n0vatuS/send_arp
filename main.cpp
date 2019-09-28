@@ -26,13 +26,21 @@ int main(int argc, char* argv[]) {
 
   char* src_ip = argv[2];
   char* des_ip = argv[3];
-  u_char * target_mac_address = getTargetMacAddress(handle, dev, src_ip, des_ip);
+
+  u_char * sender_mac_address = getSenderMacAddress(dev);
+  printf("Sender Mac Address : ");
+  for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
+      printf("%02x", sender_mac_address[i]);
+      if(i != ETHER_ADDR_LEN - 1) printf(":");
+  }
+  printf("\n\n");
+  u_char * target_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, des_ip);
   printf("Target Mac Address : ");
   for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
       printf("%02x", target_mac_address[i]);
       if(i != ETHER_ADDR_LEN - 1) printf(":");
   }
-  printf("\n");
+  printf("\n\n");
 
   pcap_close(handle);
   return 0;
