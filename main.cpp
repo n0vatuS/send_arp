@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <memory.h>
+#include <netinet/if_ether.h>
 #include <pcap.h>
 #include "module.h"
 
@@ -26,6 +27,12 @@ int main(int argc, char* argv[]) {
   char* src_ip = argv[2];
   char* des_ip = argv[3];
   u_char * target_mac_address = getTargetMacAddress(handle, dev, src_ip, des_ip);
+  printf("Target Mac Address : ");
+  for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
+      printf("%02x", target_mac_address[i]);
+      if(i != ETHER_ADDR_LEN - 1) printf(":");
+  }
+  printf("\n");
 
   pcap_close(handle);
   return 0;

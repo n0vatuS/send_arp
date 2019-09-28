@@ -2,15 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_dl.h>
+#include <net/if_arp.h>
+#include <netinet/if_ether.h>
+#include <netinet/in.h>
 #include <ifaddrs.h>
 #include <errno.h>
 
-#include <net/if_arp.h>
-#include <netinet/if_ether.h>
 #include "module.h"
+#include "pcap.h"
 
 #define IP_ADDR_LEN 4
 
@@ -57,7 +58,7 @@ uint8_t * getSenderMacAddress(char * dev) {
     return NULL;
 }
 
-uint8_t * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
+u_char * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
     struct ether_header * ether_hdr = (struct ether_header *)malloc(sizeof(struct ether_header));
 
     uint8_t des_mac[ETHER_ADDR_LEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -82,7 +83,7 @@ uint8_t * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
     memcpy(req -> arp_tha, des_mac, ETHER_ADDR_LEN);
     memcpy(req -> arp_tpa, des_ip, IP_ADDR_LEN);
 
-    uint8_t * packet = (uint8_t *)malloc(sizeof(struct ether_header) + sizeof(struct ether_arp));
+    u_char * packet = (u_char *)malloc(sizeof(struct ether_header) + sizeof(struct ether_arp));
     memcpy(packet, ether_hdr, sizeof(struct ether_header));
     memcpy(packet + sizeof(struct ether_header), req, sizeof(struct ether_arp));
 
@@ -90,12 +91,23 @@ uint8_t * makeArpPacket(uint8_t * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
     for(int i = 0; i < sizeof(struct ether_header) + sizeof(struct ether_arp); i++) {
         printf("%02x ", packet[i]);
     }
-    printf("\n");
+    printf("\n\n");
 
     return packet;
 }
 
-uint8_t * getTargetMacAddress(pcap_t* handle, char * dev, char * src_ip, char * des_ip) {
-    uint8_t * packet = makeArpPacket(getSenderMacAddress(dev), parseIP(src_ip), parseIP(des_ip));
+u_char * getTargetMacAddress(pcap_t* handle, char * dev, char * src_ip, char * des_ip) {
+    u_char * packet = makeArpPacket(getSenderMacAddress(dev), parseIP(src_ip), parseIP(des_ip));
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
+
+    int cnt = 0;
+    while (++cnt) {
+        struct pcap_pkthdr * header;
+        const u_char * packet;
+        int res = pcap_next_ex(handle, &header, &packet);
+        if (res == 0) continue;
+        if (res == -1 || res == -2) break;
+        u_char * target_mac_address = DataLinkLayer(packet);
+        if(target_mac_address) return target_mac_address;
+    }
 }
