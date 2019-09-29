@@ -40,6 +40,8 @@ int main(int argc, char* argv[]) {
 
   hackSender(handle, attacker_mac_address, sender_mac_address, target_ip, sender_ip);
 
+  passTest(handle, attacker_mac_address, sender_mac_address, target_ip, sender_ip);
+
   pcap_close(handle);
   return 0;
 }

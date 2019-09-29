@@ -3,5 +3,5 @@
 // header size
 #define DATALINK_HEADER_SIZE 14
 
-u_char * DataLinkLayer(const u_char * packet);
-u_char * NetworkLayer(const u_char * packet);
+struct ether_arp * DataLinkLayer(const u_char * packet);
+struct ether_arp * NetworkLayer(const u_char * packet);
